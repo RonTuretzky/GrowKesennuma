@@ -8,13 +8,13 @@ import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import { ArrowLeft, Check, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { useWallet } from "@/hooks/use-wallet"
+import { useWallet } from "@/contexts/wallet-context"
 import { useVoting } from "@/hooks/use-voting"
 import { ConnectWalletButton } from "@/components/connect-wallet-button"
 import { ImpactorCard } from "@/components/impactor-card"
 
 export default function VotePage() {
-  const { wallet, isConnecting, isConnected, connect } = useWallet()
+  const { address, isConnected } = useWallet()
   const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting } = useVoting()
   const [isAllowlisted, setIsAllowlisted] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -28,12 +28,12 @@ export default function VotePage() {
       setIsLoading(false)
     }
 
-    if (isConnected) {
+    if (isConnected && address) {
       checkAllowlist()
     } else {
       setIsLoading(false)
     }
-  }, [isConnected])
+  }, [isConnected, address])
 
   const handleSubmitVote = async () => {
     try {

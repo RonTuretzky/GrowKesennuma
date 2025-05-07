@@ -1,5 +1,5 @@
 import type React from "react"
-import { WalletProvider } from "@/hooks/use-wallet"
+import { WalletProvider } from "@/contexts/wallet-context"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 
