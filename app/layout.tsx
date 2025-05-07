@@ -1,6 +1,7 @@
 import type React from "react"
 import { WalletProvider } from "@/contexts/wallet-context"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Header } from "@/components/header"
 import "./globals.css"
 
 export const metadata = {
@@ -19,6 +20,7 @@ export default function RootLayout({
       <body>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <WalletProvider>
+            <Header />
             <main>{children}</main>
           </WalletProvider>
         </ThemeProvider>

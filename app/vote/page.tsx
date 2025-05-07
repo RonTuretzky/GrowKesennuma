@@ -1,8 +1,5 @@
 "use client"
-
-import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -16,24 +13,6 @@ import { ImpactorCard } from "@/components/impactor-card"
 export default function VotePage() {
   const { address, isConnected } = useWallet()
   const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting } = useVoting()
-  const [isAllowlisted, setIsAllowlisted] = useState<boolean | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  // Simulating checking if user is allowlisted
-  useEffect(() => {
-    const checkAllowlist = async () => {
-      // In a real app, this would be an API call to check if the user's wallet is allowlisted
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      setIsAllowlisted(true) // For demo purposes, we'll assume the user is allowlisted
-      setIsLoading(false)
-    }
-
-    if (isConnected && address) {
-      checkAllowlist()
-    } else {
-      setIsLoading(false)
-    }
-  }, [isConnected, address])
 
   const handleSubmitVote = async () => {
     try {
@@ -51,15 +30,6 @@ export default function VotePage() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-16 flex flex-col items-center justify-center min-h-[70vh]">
-        <Loader2 className="h-12 w-12 animate-spin text-emerald-500 mb-4" />
-        <p className="text-lg text-gray-600">Checking your voting eligibility...</p>
-      </div>
-    )
-  }
-
   if (!isConnected) {
     return (
       <div className="container mx-auto px-4 py-16">
@@ -74,38 +44,6 @@ export default function VotePage() {
           </p>
           <ConnectWalletButton />
         </div>
-      </div>
-    )
-  }
-
-  if (isAllowlisted === false) {
-    return (
-      <div className="container mx-auto px-4 py-16">
-        <Link href="/" className="flex items-center text-emerald-600 mb-8">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
-        </Link>
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle>Not Allowlisted</CardTitle>
-            <CardDescription>Your wallet is not currently allowlisted to participate in voting.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600 mb-4">
-              To participate in the Kesennuma Community Impact Fund voting, you need to be allowlisted. Please apply for
-              allowlisting through one of the following methods:
-            </p>
-            <ul className="list-disc pl-5 space-y-2 mb-4">
-              <li>Complete the application form</li>
-              <li>Contact a community leader for verification</li>
-              <li>Verify your identity with MyNumberCard (coming soon)</li>
-            </ul>
-          </CardContent>
-          <CardFooter>
-            <Button asChild className="w-full">
-              <Link href="/register">Apply for Allowlisting</Link>
-            </Button>
-          </CardFooter>
-        </Card>
       </div>
     )
   }
