@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/dialog"
 import { Wallet, LogOut, Loader2 } from "lucide-react"
 import { useWallet, connectors } from "@/contexts/wallet-context"
+import { toast } from "@/components/ui/use-toast"
 
-export function ConnectWalletButton() {
+export function ConnectWalletButton({ id }: { id?: string }) {
   const { address, isConnected, connect, disconnect, isConnecting } = useWallet()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [pendingConnectorId, setPendingConnectorId] = useState<string | null>(null)
@@ -26,6 +27,11 @@ export function ConnectWalletButton() {
       setIsDialogOpen(false)
     } catch (error) {
       console.error("Failed to connect:", error)
+      toast({
+        title: "Connection failed",
+        description: "Failed to connect wallet. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setPendingConnectorId(null)
     }
@@ -47,7 +53,7 @@ export function ConnectWalletButton() {
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-emerald-600 hover:bg-emerald-700">
+        <Button id={id} className="bg-emerald-600 hover:bg-emerald-700">
           <Wallet className="mr-2 h-4 w-4" /> Connect Wallet
         </Button>
       </DialogTrigger>
