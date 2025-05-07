@@ -158,4 +158,17 @@ const mockImpactors = [
       instagram: "https://www.instagram.com/square_ship/",
     },
   },
+  {
+    id: "5",
+    name: "PeaceJam Japan",
+    description:
+      "Part of the global PeaceJam Foundation, connecting Nobel Peace Prize laureates with youth to inspire and mentor the next generation of leaders committed to positive change.",
+    image: "/japan-youth-peace-education.png",
+    category: "Education",
+    socialLinks: {
+      website: "https://peacejam.org/japan",
+      twitter: "https://x.com/PEACE_JAM",
+      instagram: "https://instagram.com/peacejam_japan",
+    },
+  },
 ]
