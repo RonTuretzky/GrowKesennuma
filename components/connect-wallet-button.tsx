@@ -11,13 +11,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Wallet, LogOut, Loader2, AlertCircle } from "lucide-react"
-import { useWallet, connectors } from "@/contexts/wallet-context"
+import { Wallet, LogOut, Loader2, AlertCircle, ChevronDown } from "lucide-react"
+import { useWallet } from "@/contexts/wallet-context"
 import { toast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { connectors } from "@/lib/connectors"
 
 export function ConnectWalletButton({ id }: { id?: string }) {
-  const { address, isConnected, connect, disconnect, isConnecting, error } = useWallet()
+  const {
+    address,
+    isConnected,
+    connect,
+    disconnect,
+    isConnecting,
+    error,
+    chainId,
+    switchToGnosisChain,
+    isCorrectChain,
+  } = useWallet()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [pendingConnectorId, setPendingConnectorId] = useState<string | null>(null)
 
@@ -42,9 +54,33 @@ export function ConnectWalletButton({ id }: { id?: string }) {
     }
   }
 
+  const getNetworkName = (chainId: number) => {
+    switch (chainId) {
+      case 1:
+        return "Ethereum"
+      case 100:
+        return "Gnosis Chain"
+      default:
+        return "Unknown Network"
+    }
+  }
+
   if (isConnected && address) {
     return (
       <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className={isCorrectChain ? "bg-emerald-50" : "bg-amber-50"}>
+              <span className="mr-2 h-2 w-2 rounded-full bg-emerald-500"></span>
+              {getNetworkName(chainId)}
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => switchToGnosisChain()}>Switch to Gnosis Chain</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <span className="text-sm text-gray-600 hidden md:inline">
           {address.slice(0, 6)}...{address.slice(-4)}
         </span>

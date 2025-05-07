@@ -3,19 +3,30 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { ArrowLeft, Check, Loader2 } from "lucide-react"
+import { ArrowLeft, Check, Loader2, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { useWallet } from "@/contexts/wallet-context"
 import { useVoting } from "@/hooks/use-voting"
 import { ConnectWalletButton } from "@/components/connect-wallet-button"
 import { ImpactorCard } from "@/components/impactor-card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function VotePage() {
-  const { address, isConnected } = useWallet()
-  const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting } = useVoting()
+  const { address, isConnected, chainId, switchToGnosisChain, isCorrectChain } = useWallet()
+  const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting, contractError } = useVoting()
 
   const handleSubmitVote = async () => {
     try {
+      if (!isCorrectChain) {
+        toast({
+          title: "Wrong network",
+          description: "Please switch to Gnosis Chain to vote",
+          variant: "destructive",
+        })
+        await switchToGnosisChain()
+        return
+      }
+
       await submitVote()
       toast({
         title: "Vote submitted successfully!",
@@ -24,7 +35,8 @@ export default function VotePage() {
     } catch (error) {
       toast({
         title: "Error submitting vote",
-        description: "There was an error submitting your vote. Please try again.",
+        description:
+          error instanceof Error ? error.message : "There was an error submitting your vote. Please try again.",
         variant: "destructive",
       })
     }
@@ -61,6 +73,25 @@ export default function VotePage() {
           Allocate your voting power to the impact projects you believe will benefit Kesennuma the most.
         </p>
       </div>
+
+      {!isCorrectChain && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            You are not connected to Gnosis Chain. Please switch networks to vote.
+            <Button variant="outline" size="sm" onClick={() => switchToGnosisChain()} className="ml-4">
+              Switch to Gnosis Chain
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {contractError && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{contractError}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="bg-emerald-50 p-4 rounded-lg mb-8">
         <div className="flex justify-between items-center mb-2">
