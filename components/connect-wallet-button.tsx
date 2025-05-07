@@ -11,25 +11,30 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Wallet, LogOut, Loader2 } from "lucide-react"
+import { Wallet, LogOut, Loader2, AlertCircle } from "lucide-react"
 import { useWallet, connectors } from "@/contexts/wallet-context"
 import { toast } from "@/components/ui/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export function ConnectWalletButton({ id }: { id?: string }) {
-  const { address, isConnected, connect, disconnect, isConnecting } = useWallet()
+  const { address, isConnected, connect, disconnect, isConnecting, error } = useWallet()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [pendingConnectorId, setPendingConnectorId] = useState<string | null>(null)
 
-  const handleConnect = async (connectorId: string) => {
-    setPendingConnectorId(connectorId)
+  const handleConnect = async (connector: any) => {
+    setPendingConnectorId(connector.id)
     try {
-      await connect(connectorId)
+      await connect(connector.id)
       setIsDialogOpen(false)
+      toast({
+        title: "Wallet connected",
+        description: "Your wallet has been connected successfully.",
+      })
     } catch (error) {
       console.error("Failed to connect:", error)
       toast({
         title: "Connection failed",
-        description: "Failed to connect wallet. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to connect wallet. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -65,17 +70,25 @@ export function ConnectWalletButton({ id }: { id?: string }) {
           </DialogDescription>
         </DialogHeader>
 
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error.message || "There was an error connecting to your wallet."}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid grid-cols-2 gap-4 py-4">
           {connectors.map((connector) => {
             const isLoading = isConnecting && connector.id === pendingConnectorId
+            const isReady = connector.ready
 
             return (
               <Button
                 key={connector.id}
                 variant="outline"
                 className="flex flex-col items-center justify-center h-24 p-4"
-                disabled={isLoading || !connector.ready}
-                onClick={() => handleConnect(connector.id)}
+                disabled={isLoading || !isReady}
+                onClick={() => handleConnect(connector)}
               >
                 {isLoading ? (
                   <Loader2 className="h-10 w-10 mb-2 animate-spin" />
@@ -83,6 +96,7 @@ export function ConnectWalletButton({ id }: { id?: string }) {
                   <img src={connector.logo || "/placeholder.svg"} alt={connector.name} className="h-10 w-10 mb-2" />
                 )}
                 <span className="text-sm">{connector.name}</span>
+                {!isReady && <span className="text-xs text-gray-500">(not installed)</span>}
               </Button>
             )
           })}

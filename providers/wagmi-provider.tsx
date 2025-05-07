@@ -1,6 +1,6 @@
 "use client"
 
-import { WagmiConfig, createConfig, configureChains, mainnet } from "wagmi"
+import { createConfig, configureChains, mainnet, WagmiConfig } from "wagmi"
 import { publicProvider } from "wagmi/providers/public"
 import { MetaMaskConnector } from "wagmi/connectors/metaMask"
 import { WalletConnectConnector } from "wagmi/connectors/walletConnect"
@@ -15,11 +15,18 @@ const { chains, publicClient, webSocketPublicClient } = configureChains([mainnet
 const config = createConfig({
   autoConnect: true,
   connectors: [
-    new MetaMaskConnector({ chains }),
+    new MetaMaskConnector({
+      chains,
+      options: {
+        shimDisconnect: true,
+        UNSTABLE_shimOnConnectSelectAccount: true,
+      },
+    }),
     new WalletConnectConnector({
       chains,
       options: {
-        projectId: "YOUR_WALLET_CONNECT_PROJECT_ID", // You'll need to replace this with a real project ID
+        projectId: "10a5c7292483a1b5e1a229f2c1b9f4b0", // Demo project ID
+        showQrModal: true,
       },
     }),
     new CoinbaseWalletConnector({

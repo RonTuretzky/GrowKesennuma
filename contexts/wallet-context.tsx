@@ -11,6 +11,7 @@ type WalletContextType = {
   disconnect: () => void
   chainId: number
   balance: string
+  error: Error | null
 }
 
 // Default context values
@@ -22,6 +23,7 @@ const defaultContext: WalletContextType = {
   disconnect: () => {},
   chainId: 1, // Ethereum mainnet
   balance: "0",
+  error: null,
 }
 
 // Create the context
@@ -30,19 +32,19 @@ const WalletContext = createContext<WalletContextType>(defaultContext)
 // Available wallet connectors
 export const connectors = [
   {
-    id: "metamask",
+    id: "metaMask",
     name: "MetaMask",
     logo: "/metamask-logo.png",
     ready: true,
   },
   {
-    id: "walletconnect",
+    id: "walletConnect",
     name: "WalletConnect",
     logo: "/wallet-connect-logo.png",
     ready: true,
   },
   {
-    id: "coinbasewallet",
+    id: "coinbaseWallet",
     name: "Coinbase Wallet",
     logo: "/coinbase-wallet-logo.png",
     ready: true,
@@ -62,6 +64,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isConnected, setIsConnected] = useState(false)
   const [chainId, setChainId] = useState(1) // Default to Ethereum mainnet
   const [balance, setBalance] = useState("0")
+  const [error, setError] = useState<Error | null>(null)
 
   // Check if wallet is already connected on mount
   useEffect(() => {
@@ -83,10 +86,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // Connect wallet function
   const connect = async (connectorId: string) => {
     setIsConnecting(true)
+    setError(null)
 
     try {
       // Simulate connection delay
       await new Promise((resolve) => setTimeout(resolve, 1500))
+
+      // Simulate connection errors randomly (10% chance)
+      if (Math.random() < 0.1) {
+        throw new Error("Failed to connect to wallet. Please try again.")
+      }
 
       // Generate a mock wallet address
       const mockWalletAddress = "0x" + Math.random().toString(16).substring(2, 42)
@@ -112,6 +121,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return mockWalletAddress
     } catch (error) {
       console.error("Error connecting wallet:", error)
+      setError(error instanceof Error ? error : new Error("Unknown error occurred"))
       throw error
     } finally {
       setIsConnecting(false)
@@ -124,6 +134,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsConnected(false)
     setChainId(1)
     setBalance("0")
+    setError(null)
     localStorage.removeItem("wallet")
   }
 
@@ -137,6 +148,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         disconnect,
         chainId,
         balance,
+        error,
       }}
     >
       {children}
