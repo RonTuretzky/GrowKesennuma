@@ -156,10 +156,10 @@ export default function VotePage() {
   )
 }
 
-// Mock data for impactors
+// Mock data for impactors with IDs changed to 0-4 instead of 1-5
 const mockImpactors = [
   {
-    id: "1",
+    id: "0",
     name: "Women's Eye (ウィメンズアイ)",
     description:
       "A nonprofit organization dedicated to empowering women and fostering community resilience in areas affected by the 2011 Great East Japan Earthquake.",
@@ -172,7 +172,7 @@ const mockImpactors = [
     },
   },
   {
-    id: "2",
+    id: "1",
     name: "Sokoage (底上げ)",
     description:
       "A certified NPO focusing on youth empowerment and community development through educational programs and civic engagement initiatives.",
@@ -185,7 +185,7 @@ const mockImpactors = [
     },
   },
   {
-    id: "3",
+    id: "2",
     name: "MARU. Architecture (マル・アーキテクチャー)",
     description:
       "A Tokyo-based architectural firm known for its community-centric design approach, emphasizing open, collaborative environments.",
@@ -198,7 +198,7 @@ const mockImpactors = [
     },
   },
   {
-    id: "4",
+    id: "3",
     name: "Kesennuma Machi Daigaku (気仙沼まち大学)",
     description:
       "A community-driven initiative aimed at revitalizing Kesennuma, serving as a platform for residents to engage in local issues and develop solutions.",
@@ -211,7 +211,7 @@ const mockImpactors = [
     },
   },
   {
-    id: "5",
+    id: "4",
     name: "PeaceJam Japan",
     description:
       "Part of the global PeaceJam Foundation, connecting Nobel Peace Prize laureates with youth to inspire and mentor the next generation of leaders committed to positive change.",
