@@ -7,7 +7,6 @@ export const GovernanceABI = [
   "function getTotalVotes(uint256 _impactorId) external view returns (uint256)",
   "function maxPoints() external view returns (uint256)",
   "function currentEpoch() external view returns (uint256)",
-  "function isAllowlisted(address _user) external view returns (bool)",
   "event VoteCast(address indexed voter, uint256[] impactorIds, uint256[] points, uint256 votingPower, uint256 epoch)",
 ]
 

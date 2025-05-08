@@ -10,28 +10,14 @@ import { useVoting } from "@/hooks/use-voting"
 import { ConnectWalletButton } from "@/components/connect-wallet-button"
 import { ImpactorCard } from "@/components/impactor-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useState } from "react"
 
 export default function VotePage() {
   const { address, isConnected, chainId, switchToGnosisChain, isCorrectChain } = useWallet()
   const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting, contractError } = useVoting()
-  const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
   const handleSubmitVote = async () => {
-    if (remainingPoints > 0) {
-      toast({
-        title: "Incomplete allocation",
-        description: "You must allocate all 100 points before submitting your vote.",
-        variant: "destructive",
-      })
-      return
-    }
-
     try {
-      setTransactionStatus("Preparing transaction...")
-
       if (!isCorrectChain) {
-        setTransactionStatus("Switching to Gnosis Chain...")
         toast({
           title: "Wrong network",
           description: "Please switch to Gnosis Chain to vote",
@@ -41,38 +27,18 @@ export default function VotePage() {
         return
       }
 
-      setTransactionStatus("Waiting for wallet confirmation...")
       await submitVote()
-
-      setTransactionStatus("Transaction confirmed!")
       toast({
         title: "Vote submitted successfully!",
         description: "Your vote has been recorded on the blockchain.",
       })
-    } catch (error: any) {
-      console.error("Vote submission error:", error)
-      setTransactionStatus(null)
-
-      // Check for user rejected transaction
-      if (error.message && error.message.includes("user rejected")) {
-        toast({
-          title: "Transaction rejected",
-          description: "You rejected the transaction in your wallet.",
-          variant: "destructive",
-        })
-      } else if (error.message && error.message.includes("user not allowlisted")) {
-        toast({
-          title: "Not allowlisted",
-          description: "Your address is not allowlisted to vote. Please register first.",
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Error submitting vote",
-          description: error.message || "There was an error submitting your vote. Please try again.",
-          variant: "destructive",
-        })
-      }
+    } catch (error) {
+      toast({
+        title: "Error submitting vote",
+        description:
+          error instanceof Error ? error.message : "There was an error submitting your vote. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -127,13 +93,6 @@ export default function VotePage() {
         </Alert>
       )}
 
-      {transactionStatus && (
-        <Alert className="mb-6 bg-blue-50 border-blue-200">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-          <AlertDescription className="text-blue-700">{transactionStatus}</AlertDescription>
-        </Alert>
-      )}
-
       <div className="bg-emerald-50 p-4 rounded-lg mb-8">
         <div className="flex justify-between items-center mb-2">
           <span className="font-medium">Remaining Voting Power</span>
@@ -154,7 +113,11 @@ export default function VotePage() {
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={handleSubmitVote} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button
+          onClick={handleSubmitVote}
+          disabled={remainingPoints > 0 || isSubmitting}
+          className="bg-emerald-600 hover:bg-emerald-700"
+        >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
