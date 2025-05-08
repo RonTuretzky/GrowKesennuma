@@ -2,13 +2,14 @@
 
 import { useState } from "react"
 import { useWallet } from "@/contexts/wallet-context"
+import { getGovernanceContract } from "@/lib/contracts"
 
 interface Allocations {
   [impactorId: string]: number
 }
 
 export function useVoting(totalPoints = 100) {
-  const { address, isConnected, provider, isCorrectChain, switchToGnosisChain } = useWallet()
+  const { address, isConnected, isCorrectChain, switchToGnosisChain, signer } = useWallet()
   const [allocations, setAllocations] = useState<Allocations>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [maxPoints, setMaxPoints] = useState(totalPoints)
@@ -52,6 +53,10 @@ export function useVoting(totalPoints = 100) {
       }
     }
 
+    if (!signer) {
+      throw new Error("Signer not available")
+    }
+
     setIsSubmitting(true)
     setContractError(null)
 
@@ -65,15 +70,16 @@ export function useVoting(totalPoints = 100) {
       console.log("ImpactorIds:", impactorIds)
       console.log("Points:", points)
 
-      // In a real implementation, we would call the contract here
-      // For our simulation, we'll just simulate a transaction
+      // Get contract instance
+      const contract = getGovernanceContract(signer)
 
-      // Simulate transaction delay
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Call the vote function
+      const tx = await contract.vote(impactorIds, points)
 
-      // Simulate transaction hash
-      const txHash = "0x" + Math.random().toString(16).substring(2, 66)
-      console.log("Transaction hash:", txHash)
+      // Wait for transaction to be mined
+      const receipt = await tx.wait()
+
+      console.log("Transaction hash:", receipt.hash)
 
       // Save vote to localStorage for persistence
       const votes = JSON.parse(localStorage.getItem("votes") || "[]")
@@ -81,7 +87,7 @@ export function useVoting(totalPoints = 100) {
         address,
         allocations,
         timestamp: new Date().toISOString(),
-        txHash,
+        txHash: receipt.hash,
       })
       localStorage.setItem("votes", JSON.stringify(votes))
 

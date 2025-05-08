@@ -1,3 +1,5 @@
+import { ethers } from "ethers"
+
 // ABI for the Governance contract
 export const GovernanceABI = [
   "function vote(uint256[] calldata _impactorIds, uint256[] calldata _points) external",
@@ -22,10 +24,20 @@ export const GNOSIS_CHAIN = {
     symbol: "xDAI",
   },
   rpcUrls: {
-    default: { http: ["https://rpc.gnosischain.com"] },
-    public: { http: ["https://rpc.gnosischain.com"] },
+    default: "https://rpc.gnosischain.com",
+    public: "https://rpc.gnosischain.com",
   },
   blockExplorers: {
     default: { name: "Blockscout", url: "https://gnosisscan.io" },
   },
+}
+
+// Create a contract instance
+export function getGovernanceContract(provider: ethers.Provider | ethers.Signer) {
+  return new ethers.Contract(GOVERNANCE_CONTRACT_ADDRESS, GovernanceABI, provider)
+}
+
+// Get provider for Gnosis Chain
+export function getGnosisProvider() {
+  return new ethers.JsonRpcProvider(GNOSIS_CHAIN.rpcUrls.default)
 }

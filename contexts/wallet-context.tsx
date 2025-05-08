@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { ethers, BrowserProvider, type Signer } from "ethers"
 import { GNOSIS_CHAIN } from "@/lib/contracts"
 
 // Types for our wallet context
@@ -8,14 +9,15 @@ type WalletContextType = {
   address: string | null
   isConnecting: boolean
   isConnected: boolean
-  connect: (connectorId: string) => Promise<void>
+  connect: () => Promise<void>
   disconnect: () => void
-  chainId: number
+  chainId: number | null
   balance: string
   error: Error | null
-  provider: any | null
-  switchToGnosisChain: () => Promise<boolean>
   isCorrectChain: boolean
+  switchToGnosisChain: () => Promise<boolean>
+  signer: Signer | null
+  provider: BrowserProvider | null
 }
 
 // Default context values
@@ -24,161 +26,109 @@ const defaultContext: WalletContextType = {
   isConnecting: false,
   isConnected: false,
   connect: async () => {},
-  disconnect: () => {},
-  chainId: 1, // Default to Ethereum mainnet
+  disconnect: async () => {},
+  chainId: null,
   balance: "0",
   error: null,
-  provider: null,
-  switchToGnosisChain: async () => false,
   isCorrectChain: false,
+  switchToGnosisChain: async () => false,
+  signer: null,
+  provider: null,
 }
 
 // Create the context
 const WalletContext = createContext<WalletContextType>(defaultContext)
-
-// Available wallet connectors
-export const connectors = [
-  {
-    id: "metaMask",
-    name: "MetaMask",
-    logo: "/metamask-logo.png",
-    ready: true,
-  },
-  {
-    id: "walletConnect",
-    name: "WalletConnect",
-    logo: "/wallet-connect-logo.png",
-    ready: true,
-  },
-  {
-    id: "coinbaseWallet",
-    name: "Coinbase Wallet",
-    logo: "/coinbase-wallet-logo.png",
-    ready: true,
-  },
-  {
-    id: "injected",
-    name: "Browser Wallet",
-    logo: "/abstract-wallet-logo.png",
-    ready: true,
-  },
-]
 
 // Provider component
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
-  const [chainId, setChainId] = useState(1) // Default to Ethereum mainnet
+  const [chainId, setChainId] = useState<number | null>(null)
   const [balance, setBalance] = useState("0")
   const [error, setError] = useState<Error | null>(null)
-  const [provider, setProvider] = useState<any>(null)
-  const [isCorrectChain, setIsCorrectChain] = useState(false)
+  const [signer, setSigner] = useState<Signer | null>(null)
+  const [provider, setProvider] = useState<BrowserProvider | null>(null)
+  const [isCorrectChain, setIsCorrectChain] = useState<boolean>(false)
 
-  // Check if wallet is already connected on mount
-  useEffect(() => {
-    const savedWallet = localStorage.getItem("wallet")
-    if (savedWallet) {
-      try {
-        const walletData = JSON.parse(savedWallet)
-        setAddress(walletData.address)
-        setChainId(walletData.chainId || 1)
-        setBalance(walletData.balance || "0.5")
-        setIsConnected(true)
-        setIsCorrectChain(walletData.chainId === GNOSIS_CHAIN.id)
-      } catch (error) {
-        console.error("Error parsing saved wallet data:", error)
-        localStorage.removeItem("wallet")
-      }
-    }
-  }, [])
-
-  // Switch to Gnosis Chain
-  const switchToGnosisChain = async (): Promise<boolean> => {
-    // In a real implementation, this would use the provider to switch chains
-    // For our simulation, we'll just update the state
-    try {
-      setChainId(GNOSIS_CHAIN.id)
-      setIsCorrectChain(true)
-
-      // Update localStorage
-      if (address) {
-        const walletData = {
-          address,
-          chainId: GNOSIS_CHAIN.id,
-          balance,
-        }
-        localStorage.setItem("wallet", JSON.stringify(walletData))
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error switching to Gnosis Chain:", error)
-      setError(error instanceof Error ? error : new Error("Failed to switch network"))
-      return false
-    }
-  }
+  // Check if on correct chain
+  const isCorrectChainValue = chainId === GNOSIS_CHAIN.id
 
   // Connect wallet function
-  const connect = async (connectorId: string) => {
+  const connect = async () => {
+    if (typeof window === "undefined" || !window.ethereum) {
+      setError(new Error("No Ethereum wallet found. Please install MetaMask or another wallet."))
+      return
+    }
+
     setIsConnecting(true)
     setError(null)
 
     try {
-      // Simulate connection delay
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Request account access
+      const provider = new BrowserProvider(window.ethereum)
+      setProvider(provider)
 
-      // Simulate connection errors randomly (10% chance)
-      if (Math.random() < 0.1) {
-        throw new Error("Failed to connect to wallet. Please try again.")
-      }
+      // Get accounts
+      const accounts = await provider.send("eth_requestAccounts", [])
+      const address = accounts[0]
+      setAddress(address)
 
-      // Generate a mock wallet address
-      const mockWalletAddress = "0x" + Math.random().toString(16).substring(2, 42)
+      // Get network
+      const network = await provider.getNetwork()
+      setChainId(Number(network.chainId))
 
-      // Generate random balance between 0.1 and 5 ETH
-      const randomBalance = (Math.random() * 4.9 + 0.1).toFixed(4)
+      // Get signer
+      const signer = await provider.getSigner()
+      setSigner(signer)
 
-      // Set wallet state
-      setAddress(mockWalletAddress)
-      setChainId(1) // Default to Ethereum mainnet
-      setBalance(randomBalance)
+      // Get balance
+      const balance = await provider.getBalance(address)
+      setBalance(ethers.formatEther(balance))
+
       setIsConnected(true)
-      setIsCorrectChain(false) // Default to not on Gnosis Chain
-
-      // Create a mock provider (in a real app, this would be the actual provider)
-      const mockProvider = {
-        request: async ({ method, params }: { method: string; params: any[] }) => {
-          if (method === "eth_chainId") {
-            return "0x" + chainId.toString(16)
-          }
-          if (method === "eth_accounts") {
-            return [mockWalletAddress]
-          }
-          if (method === "eth_getBalance") {
-            return "0x" + (Number.parseFloat(randomBalance) * 1e18).toString(16)
-          }
-          return null
-        },
-      }
-      setProvider(mockProvider)
-
-      // Save to localStorage for persistence
-      const walletData = {
-        address: mockWalletAddress,
-        chainId: 1,
-        balance: randomBalance,
-        connector: connectorId,
-      }
-      localStorage.setItem("wallet", JSON.stringify(walletData))
-
-      return mockWalletAddress
     } catch (error) {
       console.error("Error connecting wallet:", error)
-      setError(error instanceof Error ? error : new Error("Unknown error occurred"))
-      throw error
+      setError(error instanceof Error ? error : new Error("Failed to connect wallet"))
     } finally {
       setIsConnecting(false)
+    }
+  }
+
+  // Switch to Gnosis Chain
+  const switchToGnosisChain = async (): Promise<boolean> => {
+    if (!window.ethereum) return false
+
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: `0x${GNOSIS_CHAIN.id.toString(16)}` }],
+      })
+      return true
+    } catch (switchError: any) {
+      // This error code indicates that the chain has not been added to MetaMask
+      if (switchError.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: `0x${GNOSIS_CHAIN.id.toString(16)}`,
+                chainName: GNOSIS_CHAIN.name,
+                nativeCurrency: GNOSIS_CHAIN.nativeCurrency,
+                rpcUrls: [GNOSIS_CHAIN.rpcUrls.default],
+                blockExplorerUrls: [GNOSIS_CHAIN.blockExplorers.default.url],
+              },
+            ],
+          })
+          return true
+        } catch (addError) {
+          console.error("Error adding Gnosis Chain:", addError)
+          return false
+        }
+      }
+      console.error("Error switching to Gnosis Chain:", switchError)
+      return false
     }
   }
 
@@ -186,13 +136,45 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const disconnect = () => {
     setAddress(null)
     setIsConnected(false)
-    setChainId(1)
+    setChainId(null)
     setBalance("0")
-    setError(null)
+    setSigner(null)
     setProvider(null)
-    setIsCorrectChain(false)
-    localStorage.removeItem("wallet")
   }
+
+  // Listen for account changes
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.ethereum) return
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length === 0) {
+        // User disconnected
+        disconnect()
+      } else if (accounts[0] !== address) {
+        // User switched accounts
+        setAddress(accounts[0])
+        if (provider) {
+          provider.getBalance(accounts[0]).then((balance) => {
+            setBalance(ethers.formatEther(balance))
+          })
+        }
+      }
+    }
+
+    const handleChainChanged = (chainIdHex: string) => {
+      const newChainId = Number.parseInt(chainIdHex, 16)
+      setChainId(newChainId)
+      setIsCorrectChain(newChainId === GNOSIS_CHAIN.id)
+    }
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged)
+    window.ethereum.on("chainChanged", handleChainChanged)
+
+    return () => {
+      window.ethereum.removeListener("accountsChanged", handleAccountsChanged)
+      window.ethereum.removeListener("chainChanged", handleChainChanged)
+    }
+  }, [address, provider])
 
   return (
     <WalletContext.Provider
@@ -205,9 +187,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         chainId,
         balance,
         error,
-        provider,
+        isCorrectChain: isCorrectChainValue,
         switchToGnosisChain,
-        isCorrectChain,
+        signer,
+        provider,
       }}
     >
       {children}
@@ -218,4 +201,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 // Hook for using the wallet context
 export function useWallet() {
   return useContext(WalletContext)
+}
+
+// Add window.ethereum type
+declare global {
+  interface Window {
+    ethereum?: any
+  }
 }

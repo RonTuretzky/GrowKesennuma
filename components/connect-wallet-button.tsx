@@ -16,7 +16,6 @@ import { useWallet } from "@/contexts/wallet-context"
 import { toast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { connectors } from "@/lib/connectors"
 
 export function ConnectWalletButton({ id }: { id?: string }) {
   const {
@@ -31,12 +30,10 @@ export function ConnectWalletButton({ id }: { id?: string }) {
     isCorrectChain,
   } = useWallet()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [pendingConnectorId, setPendingConnectorId] = useState<string | null>(null)
 
-  const handleConnect = async (connector: any) => {
-    setPendingConnectorId(connector.id)
+  const handleConnect = async () => {
     try {
-      await connect(connector.id)
+      await connect()
       setIsDialogOpen(false)
       toast({
         title: "Wallet connected",
@@ -49,12 +46,12 @@ export function ConnectWalletButton({ id }: { id?: string }) {
         description: error instanceof Error ? error.message : "Failed to connect wallet. Please try again.",
         variant: "destructive",
       })
-    } finally {
-      setPendingConnectorId(null)
     }
   }
 
-  const getNetworkName = (chainId: number) => {
+  const getNetworkName = (chainId: number | null) => {
+    if (chainId === null) return "Unknown Network"
+
     switch (chainId) {
       case 1:
         return "Ethereum"
@@ -113,29 +110,25 @@ export function ConnectWalletButton({ id }: { id?: string }) {
           </Alert>
         )}
 
-        <div className="grid grid-cols-2 gap-4 py-4">
-          {connectors.map((connector) => {
-            const isLoading = isConnecting && connector.id === pendingConnectorId
-            const isReady = connector.ready
-
-            return (
-              <Button
-                key={connector.id}
-                variant="outline"
-                className="flex flex-col items-center justify-center h-24 p-4"
-                disabled={isLoading || !isReady}
-                onClick={() => handleConnect(connector)}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-10 w-10 mb-2 animate-spin" />
-                ) : (
-                  <img src={connector.logo || "/placeholder.svg"} alt={connector.name} className="h-10 w-10 mb-2" />
-                )}
-                <span className="text-sm">{connector.name}</span>
-                {!isReady && <span className="text-xs text-gray-500">(not installed)</span>}
-              </Button>
-            )
-          })}
+        <div className="py-4">
+          <p className="text-center mb-4">Connect with your Ethereum wallet to vote on fund allocation.</p>
+          <Button
+            className="w-full bg-emerald-600 hover:bg-emerald-700"
+            onClick={handleConnect}
+            disabled={isConnecting}
+          >
+            {isConnecting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Wallet className="mr-2 h-4 w-4" />
+                Connect Wallet
+              </>
+            )}
+          </Button>
         </div>
 
         <DialogFooter className="flex flex-col">
