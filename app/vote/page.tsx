@@ -3,30 +3,35 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { ArrowLeft, Check, Loader2, AlertTriangle, Info } from "lucide-react"
+import { ArrowLeft, Check, Loader2, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { useWallet } from "@/contexts/wallet-context"
 import { useVoting } from "@/hooks/use-voting"
 import { ConnectWalletButton } from "@/components/connect-wallet-button"
 import { ImpactorCard } from "@/components/impactor-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useState } from "react"
 
 export default function VotePage() {
   const { address, isConnected, chainId, switchToGnosisChain, isCorrectChain } = useWallet()
-  const {
-    allocations,
-    setAllocation,
-    remainingPoints,
-    submitVote,
-    isSubmitting,
-    contractError,
-    isAllowlisted,
-    isCheckingAllowlist,
-  } = useVoting()
+  const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting, contractError } = useVoting()
+  const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
   const handleSubmitVote = async () => {
+    if (remainingPoints > 0) {
+      toast({
+        title: "Incomplete allocation",
+        description: "You must allocate all 100 points before submitting your vote.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
+      setTransactionStatus("Preparing transaction...")
+
       if (!isCorrectChain) {
+        setTransactionStatus("Switching to Gnosis Chain...")
         toast({
           title: "Wrong network",
           description: "Please switch to Gnosis Chain to vote",
@@ -36,28 +41,29 @@ export default function VotePage() {
         return
       }
 
-      if (isAllowlisted === false) {
-        toast({
-          title: "Not allowlisted",
-          description: "Your address is not allowlisted to vote. Please register first.",
-          variant: "destructive",
-        })
-        return
-      }
-
+      setTransactionStatus("Waiting for wallet confirmation...")
       await submitVote()
+
+      setTransactionStatus("Transaction confirmed!")
       toast({
         title: "Vote submitted successfully!",
         description: "Your vote has been recorded on the blockchain.",
       })
     } catch (error: any) {
       console.error("Vote submission error:", error)
+      setTransactionStatus(null)
 
       // Check for user rejected transaction
-      if (error.message && error.message.includes("user rejected transaction")) {
+      if (error.message && error.message.includes("user rejected")) {
         toast({
           title: "Transaction rejected",
           description: "You rejected the transaction in your wallet.",
+          variant: "destructive",
+        })
+      } else if (error.message && error.message.includes("user not allowlisted")) {
+        toast({
+          title: "Not allowlisted",
+          description: "Your address is not allowlisted to vote. Please register first.",
           variant: "destructive",
         })
       } else {
@@ -102,28 +108,6 @@ export default function VotePage() {
         </p>
       </div>
 
-      {isCheckingAllowlist && (
-        <Alert className="mb-6 bg-blue-50 border-blue-200">
-          <Info className="h-4 w-4 text-blue-500" />
-          <AlertDescription className="text-blue-700">
-            Checking if your address is allowlisted to vote...
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isAllowlisted === false && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Your address ({address?.slice(0, 6)}...{address?.slice(-4)}) is not allowlisted to vote. Please register
-            first.
-            <Button asChild variant="outline" size="sm" className="ml-4">
-              <Link href="/register">Register to Vote</Link>
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {!isCorrectChain && (
         <Alert variant="destructive" className="mb-6">
           <AlertTriangle className="h-4 w-4" />
@@ -136,10 +120,17 @@ export default function VotePage() {
         </Alert>
       )}
 
-      {contractError && contractError !== "Your address is not allowlisted to vote. Please register first." && (
+      {contractError && (
         <Alert variant="destructive" className="mb-6">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>{contractError}</AlertDescription>
+        </Alert>
+      )}
+
+      {transactionStatus && (
+        <Alert className="mb-6 bg-blue-50 border-blue-200">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          <AlertDescription className="text-blue-700">{transactionStatus}</AlertDescription>
         </Alert>
       )}
 
@@ -163,11 +154,7 @@ export default function VotePage() {
       </div>
 
       <div className="flex justify-end">
-        <Button
-          onClick={handleSubmitVote}
-          disabled={remainingPoints > 0 || isSubmitting || isAllowlisted === false || !isCorrectChain}
-          className="bg-emerald-600 hover:bg-emerald-700"
-        >
+        <Button onClick={handleSubmitVote} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700">
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

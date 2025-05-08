@@ -1,61 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useWallet } from "@/contexts/wallet-context"
-import { getGovernanceContract, getGnosisProvider } from "@/lib/contracts"
+import { getGovernanceContract } from "@/lib/contracts"
 
 interface Allocations {
   [impactorId: string]: number
 }
 
 export function useVoting(totalPoints = 100) {
-  const { address, isConnected, isCorrectChain, switchToGnosisChain, signer, provider } = useWallet()
+  const { address, isConnected, isCorrectChain, switchToGnosisChain, signer, refreshSigner } = useWallet()
   const [allocations, setAllocations] = useState<Allocations>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [maxPoints, setMaxPoints] = useState(totalPoints)
   const [contractError, setContractError] = useState<string | null>(null)
-  const [isAllowlisted, setIsAllowlisted] = useState<boolean | null>(null)
-  const [isCheckingAllowlist, setIsCheckingAllowlist] = useState(false)
 
   // Calculate remaining points
   const usedPoints = Object.values(allocations).reduce((sum, points) => sum + points, 0)
   const remainingPoints = maxPoints - usedPoints
-
-  // Check if user is allowlisted
-  useEffect(() => {
-    const checkAllowlist = async () => {
-      if (!address || !isConnected) {
-        setIsAllowlisted(null)
-        return
-      }
-
-      setIsCheckingAllowlist(true)
-      setContractError(null)
-
-      try {
-        // Use a read-only provider for this check to avoid wallet prompts
-        const readProvider = getGnosisProvider()
-        const contract = getGovernanceContract(readProvider)
-
-        const allowed = await contract.isAllowlisted(address)
-        console.log("Allowlist check for address:", address, "Result:", allowed)
-        setIsAllowlisted(allowed)
-
-        if (!allowed) {
-          setContractError("Your address is not allowlisted to vote. Please register first.")
-        }
-      } catch (error) {
-        console.error("Error checking allowlist:", error)
-        setContractError("Error checking if you're allowlisted. Please try again.")
-      } finally {
-        setIsCheckingAllowlist(false)
-      }
-    }
-
-    if (isConnected && address) {
-      checkAllowlist()
-    }
-  }, [address, isConnected])
 
   // Set allocation for a specific impactor
   const setAllocation = (impactorId: string, points: number) => {
@@ -91,18 +53,20 @@ export function useVoting(totalPoints = 100) {
       }
     }
 
-    if (!signer) {
-      throw new Error("Signer not available")
-    }
-
-    if (isAllowlisted === false) {
-      throw new Error("Your address is not allowlisted to vote. Please register first.")
-    }
-
     setIsSubmitting(true)
     setContractError(null)
 
     try {
+      // Get a fresh signer
+      console.log("Getting fresh signer for transaction...")
+      const freshSigner = await refreshSigner()
+
+      if (!freshSigner) {
+        throw new Error("Failed to get signer. Please reconnect your wallet.")
+      }
+
+      console.log("Using signer with address:", await freshSigner.getAddress())
+
       // Prepare the vote data
       const impactorIds = Object.keys(allocations).map((id) => Number.parseInt(id))
       const points = impactorIds.map((id) => allocations[id.toString()])
@@ -112,10 +76,27 @@ export function useVoting(totalPoints = 100) {
       console.log("ImpactorIds:", impactorIds)
       console.log("Points:", points)
 
-      // Get contract instance with signer
-      const contract = getGovernanceContract(signer)
+      // Get contract instance with fresh signer
+      const contract = getGovernanceContract(freshSigner)
+      console.log("Contract instance created")
+
+      try {
+        // First, try to estimate gas to check if the transaction will fail
+        console.log("Estimating gas for transaction...")
+        const gasEstimate = await contract.vote.estimateGas(impactorIds, points)
+        console.log("Gas estimate:", gasEstimate.toString())
+      } catch (gasError) {
+        console.error("Gas estimation failed:", gasError)
+        // If gas estimation fails, it means the transaction would fail
+        // This could be due to allowlist restrictions or other contract constraints
+        if (gasError instanceof Error && gasError.message.includes("user not allowlisted")) {
+          throw new Error("Your address is not allowlisted to vote. Please register first.")
+        }
+        throw gasError
+      }
 
       // Call the vote function - this should trigger a wallet signature prompt
+      console.log("Sending transaction...")
       const tx = await contract.vote(impactorIds, points)
       console.log("Transaction sent:", tx.hash)
 
@@ -141,9 +122,10 @@ export function useVoting(totalPoints = 100) {
       // Check for specific error messages
       if (error.message && error.message.includes("user not allowlisted")) {
         setContractError("Your address is not allowlisted to vote. Please register first.")
-        setIsAllowlisted(false)
       } else if (error.message && error.message.includes("user rejected transaction")) {
         setContractError("Transaction was rejected in your wallet.")
+      } else if (error.message && error.message.includes("transaction underpriced")) {
+        setContractError("Transaction underpriced. Please try again with higher gas price.")
       } else {
         setContractError(error.message || "Unknown error occurred")
       }
@@ -163,7 +145,5 @@ export function useVoting(totalPoints = 100) {
     maxPoints,
     contractError,
     isCorrectChain,
-    isAllowlisted,
-    isCheckingAllowlist,
   }
 }
