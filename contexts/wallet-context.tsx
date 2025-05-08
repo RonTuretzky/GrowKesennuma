@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { ethers, BrowserProvider, type Signer } from "ethers"
+import { ethers, type BrowserProvider, type Signer } from "ethers"
 import { GNOSIS_CHAIN } from "@/lib/contracts"
 
 // Types for our wallet context
@@ -49,10 +49,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<Error | null>(null)
   const [signer, setSigner] = useState<Signer | null>(null)
   const [provider, setProvider] = useState<BrowserProvider | null>(null)
-  const [isCorrectChain, setIsCorrectChain] = useState<boolean>(false)
 
   // Check if on correct chain
-  const isCorrectChainValue = chainId === GNOSIS_CHAIN.id
+  const isCorrectChain = chainId === GNOSIS_CHAIN.id
 
   // Connect wallet function
   const connect = async () => {
@@ -66,7 +65,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     try {
       // Request account access
-      const provider = new BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider(window.ethereum)
       setProvider(provider)
 
       // Get accounts
@@ -87,6 +86,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setBalance(ethers.formatEther(balance))
 
       setIsConnected(true)
+
+      console.log("Wallet connected:", {
+        address,
+        chainId: Number(network.chainId),
+        signer: signer ? "Available" : "Not available",
+      })
     } catch (error) {
       console.error("Error connecting wallet:", error)
       setError(error instanceof Error ? error : new Error("Failed to connect wallet"))
@@ -104,6 +109,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         method: "wallet_switchEthereumChain",
         params: [{ chainId: `0x${GNOSIS_CHAIN.id.toString(16)}` }],
       })
+
+      // After switching, we need to update our provider and signer
+      if (provider) {
+        const network = await provider.getNetwork()
+        setChainId(Number(network.chainId))
+
+        // Get a fresh signer after chain switch
+        const signer = await provider.getSigner()
+        setSigner(signer)
+      }
+
       return true
     } catch (switchError: any) {
       // This error code indicates that the chain has not been added to MetaMask
@@ -121,6 +137,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               },
             ],
           })
+
+          // After adding, we need to update our provider and signer
+          if (provider) {
+            const network = await provider.getNetwork()
+            setChainId(Number(network.chainId))
+
+            // Get a fresh signer after chain switch
+            const signer = await provider.getSigner()
+            setSigner(signer)
+          }
+
           return true
         } catch (addError) {
           console.error("Error adding Gnosis Chain:", addError)
@@ -146,7 +173,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined" || !window.ethereum) return
 
-    const handleAccountsChanged = (accounts: string[]) => {
+    const handleAccountsChanged = async (accounts: string[]) => {
       if (accounts.length === 0) {
         // User disconnected
         disconnect()
@@ -157,18 +184,40 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           provider.getBalance(accounts[0]).then((balance) => {
             setBalance(ethers.formatEther(balance))
           })
+
+          // Get a fresh signer for the new account
+          try {
+            const signer = await provider.getSigner()
+            setSigner(signer)
+          } catch (error) {
+            console.error("Error getting signer for new account:", error)
+          }
         }
       }
     }
 
-    const handleChainChanged = (chainIdHex: string) => {
+    const handleChainChanged = async (chainIdHex: string) => {
       const newChainId = Number.parseInt(chainIdHex, 16)
       setChainId(newChainId)
-      setIsCorrectChain(newChainId === GNOSIS_CHAIN.id)
+
+      // Get a fresh signer after chain change
+      if (provider && address) {
+        try {
+          const signer = await provider.getSigner()
+          setSigner(signer)
+        } catch (error) {
+          console.error("Error getting signer after chain change:", error)
+        }
+      }
     }
 
     window.ethereum.on("accountsChanged", handleAccountsChanged)
     window.ethereum.on("chainChanged", handleChainChanged)
+
+    // Check if already connected
+    if (window.ethereum.selectedAddress) {
+      connect()
+    }
 
     return () => {
       window.ethereum.removeListener("accountsChanged", handleAccountsChanged)
@@ -187,7 +236,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         chainId,
         balance,
         error,
-        isCorrectChain: isCorrectChainValue,
+        isCorrectChain,
         switchToGnosisChain,
         signer,
         provider,

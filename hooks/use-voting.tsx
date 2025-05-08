@@ -1,23 +1,61 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useWallet } from "@/contexts/wallet-context"
-import { getGovernanceContract } from "@/lib/contracts"
+import { getGovernanceContract, getGnosisProvider } from "@/lib/contracts"
 
 interface Allocations {
   [impactorId: string]: number
 }
 
 export function useVoting(totalPoints = 100) {
-  const { address, isConnected, isCorrectChain, switchToGnosisChain, signer } = useWallet()
+  const { address, isConnected, isCorrectChain, switchToGnosisChain, signer, provider } = useWallet()
   const [allocations, setAllocations] = useState<Allocations>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [maxPoints, setMaxPoints] = useState(totalPoints)
   const [contractError, setContractError] = useState<string | null>(null)
+  const [isAllowlisted, setIsAllowlisted] = useState<boolean | null>(null)
+  const [isCheckingAllowlist, setIsCheckingAllowlist] = useState(false)
 
   // Calculate remaining points
   const usedPoints = Object.values(allocations).reduce((sum, points) => sum + points, 0)
   const remainingPoints = maxPoints - usedPoints
+
+  // Check if user is allowlisted
+  useEffect(() => {
+    const checkAllowlist = async () => {
+      if (!address || !isConnected) {
+        setIsAllowlisted(null)
+        return
+      }
+
+      setIsCheckingAllowlist(true)
+      setContractError(null)
+
+      try {
+        // Use a read-only provider for this check to avoid wallet prompts
+        const readProvider = getGnosisProvider()
+        const contract = getGovernanceContract(readProvider)
+
+        const allowed = await contract.isAllowlisted(address)
+        console.log("Allowlist check for address:", address, "Result:", allowed)
+        setIsAllowlisted(allowed)
+
+        if (!allowed) {
+          setContractError("Your address is not allowlisted to vote. Please register first.")
+        }
+      } catch (error) {
+        console.error("Error checking allowlist:", error)
+        setContractError("Error checking if you're allowlisted. Please try again.")
+      } finally {
+        setIsCheckingAllowlist(false)
+      }
+    }
+
+    if (isConnected && address) {
+      checkAllowlist()
+    }
+  }, [address, isConnected])
 
   // Set allocation for a specific impactor
   const setAllocation = (impactorId: string, points: number) => {
@@ -57,6 +95,10 @@ export function useVoting(totalPoints = 100) {
       throw new Error("Signer not available")
     }
 
+    if (isAllowlisted === false) {
+      throw new Error("Your address is not allowlisted to vote. Please register first.")
+    }
+
     setIsSubmitting(true)
     setContractError(null)
 
@@ -70,16 +112,17 @@ export function useVoting(totalPoints = 100) {
       console.log("ImpactorIds:", impactorIds)
       console.log("Points:", points)
 
-      // Get contract instance
+      // Get contract instance with signer
       const contract = getGovernanceContract(signer)
 
-      // Call the vote function
+      // Call the vote function - this should trigger a wallet signature prompt
       const tx = await contract.vote(impactorIds, points)
+      console.log("Transaction sent:", tx.hash)
 
       // Wait for transaction to be mined
+      console.log("Waiting for transaction confirmation...")
       const receipt = await tx.wait()
-
-      console.log("Transaction hash:", receipt.hash)
+      console.log("Transaction confirmed:", receipt)
 
       // Save vote to localStorage for persistence
       const votes = JSON.parse(localStorage.getItem("votes") || "[]")
@@ -87,14 +130,24 @@ export function useVoting(totalPoints = 100) {
         address,
         allocations,
         timestamp: new Date().toISOString(),
-        txHash: receipt.hash,
+        txHash: tx.hash,
       })
       localStorage.setItem("votes", JSON.stringify(votes))
 
       return true
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting vote:", error)
-      setContractError(error instanceof Error ? error.message : "Unknown error occurred")
+
+      // Check for specific error messages
+      if (error.message && error.message.includes("user not allowlisted")) {
+        setContractError("Your address is not allowlisted to vote. Please register first.")
+        setIsAllowlisted(false)
+      } else if (error.message && error.message.includes("user rejected transaction")) {
+        setContractError("Transaction was rejected in your wallet.")
+      } else {
+        setContractError(error.message || "Unknown error occurred")
+      }
+
       throw error
     } finally {
       setIsSubmitting(false)
@@ -110,5 +163,7 @@ export function useVoting(totalPoints = 100) {
     maxPoints,
     contractError,
     isCorrectChain,
+    isAllowlisted,
+    isCheckingAllowlist,
   }
 }

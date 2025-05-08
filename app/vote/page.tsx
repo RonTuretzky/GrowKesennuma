@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { ArrowLeft, Check, Loader2, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Check, Loader2, AlertTriangle, Info } from "lucide-react"
 import Link from "next/link"
 import { useWallet } from "@/contexts/wallet-context"
 import { useVoting } from "@/hooks/use-voting"
@@ -13,7 +13,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function VotePage() {
   const { address, isConnected, chainId, switchToGnosisChain, isCorrectChain } = useWallet()
-  const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting, contractError } = useVoting()
+  const {
+    allocations,
+    setAllocation,
+    remainingPoints,
+    submitVote,
+    isSubmitting,
+    contractError,
+    isAllowlisted,
+    isCheckingAllowlist,
+  } = useVoting()
 
   const handleSubmitVote = async () => {
     try {
@@ -27,18 +36,37 @@ export default function VotePage() {
         return
       }
 
+      if (isAllowlisted === false) {
+        toast({
+          title: "Not allowlisted",
+          description: "Your address is not allowlisted to vote. Please register first.",
+          variant: "destructive",
+        })
+        return
+      }
+
       await submitVote()
       toast({
         title: "Vote submitted successfully!",
         description: "Your vote has been recorded on the blockchain.",
       })
-    } catch (error) {
-      toast({
-        title: "Error submitting vote",
-        description:
-          error instanceof Error ? error.message : "There was an error submitting your vote. Please try again.",
-        variant: "destructive",
-      })
+    } catch (error: any) {
+      console.error("Vote submission error:", error)
+
+      // Check for user rejected transaction
+      if (error.message && error.message.includes("user rejected transaction")) {
+        toast({
+          title: "Transaction rejected",
+          description: "You rejected the transaction in your wallet.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Error submitting vote",
+          description: error.message || "There was an error submitting your vote. Please try again.",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -74,6 +102,28 @@ export default function VotePage() {
         </p>
       </div>
 
+      {isCheckingAllowlist && (
+        <Alert className="mb-6 bg-blue-50 border-blue-200">
+          <Info className="h-4 w-4 text-blue-500" />
+          <AlertDescription className="text-blue-700">
+            Checking if your address is allowlisted to vote...
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isAllowlisted === false && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Your address ({address?.slice(0, 6)}...{address?.slice(-4)}) is not allowlisted to vote. Please register
+            first.
+            <Button asChild variant="outline" size="sm" className="ml-4">
+              <Link href="/register">Register to Vote</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!isCorrectChain && (
         <Alert variant="destructive" className="mb-6">
           <AlertTriangle className="h-4 w-4" />
@@ -86,7 +136,7 @@ export default function VotePage() {
         </Alert>
       )}
 
-      {contractError && (
+      {contractError && contractError !== "Your address is not allowlisted to vote. Please register first." && (
         <Alert variant="destructive" className="mb-6">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>{contractError}</AlertDescription>
@@ -115,7 +165,7 @@ export default function VotePage() {
       <div className="flex justify-end">
         <Button
           onClick={handleSubmitVote}
-          disabled={remainingPoints > 0 || isSubmitting}
+          disabled={remainingPoints > 0 || isSubmitting || isAllowlisted === false || !isCorrectChain}
           className="bg-emerald-600 hover:bg-emerald-700"
         >
           {isSubmitting ? (
