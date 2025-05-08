@@ -3,67 +3,23 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { ArrowLeft, Check, Loader2, AlertTriangle, ExternalLink } from "lucide-react"
+import { ArrowLeft, Check, Loader2, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { useWallet } from "@/contexts/wallet-context"
 import { useVoting } from "@/hooks/use-voting"
 import { ConnectWalletButton } from "@/components/connect-wallet-button"
 import { ImpactorCard } from "@/components/impactor-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 
 export default function VotePage() {
   const { address, isConnected, chainId, switchToGnosisChain, isCorrectChain } = useWallet()
-  const {
-    allocations,
-    setAllocation,
-    remainingPoints,
-    submitVote,
-    isSubmitting,
-    contractError,
-    txHash,
-    checkTransactionStatus,
-  } = useVoting()
+  const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting, contractError } = useVoting()
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
-  const [isConfirmed, setIsConfirmed] = useState<boolean>(false)
-
-  // Poll for transaction status when we have a txHash
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null
-
-    if (txHash && !isConfirmed) {
-      setTransactionStatus(`Transaction submitted! Hash: ${txHash.slice(0, 6)}...${txHash.slice(-4)}`)
-
-      // Check status every 10 seconds
-      intervalId = setInterval(async () => {
-        const status = await checkTransactionStatus(txHash)
-
-        if (status === true) {
-          setTransactionStatus("Transaction confirmed successfully!")
-          setIsConfirmed(true)
-          if (intervalId) clearInterval(intervalId)
-
-          // Clear status after 5 seconds
-          setTimeout(() => {
-            setTransactionStatus(null)
-          }, 5000)
-        } else if (status === false) {
-          setTransactionStatus("Transaction failed on the blockchain")
-          if (intervalId) clearInterval(intervalId)
-        }
-        // If null, keep polling
-      }, 10000)
-    }
-
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [txHash, isConfirmed, checkTransactionStatus])
 
   const handleSubmitVote = async () => {
     try {
       setTransactionStatus("Preparing transaction...")
-      setIsConfirmed(false)
 
       if (!isCorrectChain) {
         toast({
@@ -78,14 +34,13 @@ export default function VotePage() {
       setTransactionStatus("Waiting for wallet confirmation...")
       console.log("Submitting vote, please check your wallet for transaction confirmation...")
 
-      const result = await submitVote()
+      await submitVote()
 
-      if (result?.hash) {
-        toast({
-          title: "Transaction submitted!",
-          description: `Your vote has been submitted to the blockchain. Transaction hash: ${result.hash.slice(0, 6)}...${result.hash.slice(-4)}`,
-        })
-      }
+      setTransactionStatus("Transaction confirmed!")
+      toast({
+        title: "Vote submitted successfully!",
+        description: "Your vote has been recorded on the blockchain.",
+      })
     } catch (error) {
       console.error("Vote submission error:", error)
       setTransactionStatus(null)
@@ -96,6 +51,8 @@ export default function VotePage() {
           error instanceof Error ? error.message : "There was an error submitting your vote. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setTimeout(() => setTransactionStatus(null), 5000)
     }
   }
 
@@ -151,25 +108,9 @@ export default function VotePage() {
       )}
 
       {transactionStatus && (
-        <Alert className={`mb-6 ${isConfirmed ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"}`}>
-          {isConfirmed ? (
-            <Check className="h-4 w-4 text-green-500" />
-          ) : (
-            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-          )}
-          <AlertDescription className={isConfirmed ? "text-green-700" : "text-blue-700"}>
-            {transactionStatus}
-            {txHash && (
-              <a
-                href={`https://gnosisscan.io/tx/${txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center ml-2 text-blue-600 hover:underline"
-              >
-                View on Explorer <ExternalLink className="h-3 w-3 ml-1" />
-              </a>
-            )}
-          </AlertDescription>
+        <Alert className="mb-6 bg-blue-50 border-blue-200">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          <AlertDescription className="text-blue-700">{transactionStatus}</AlertDescription>
         </Alert>
       )}
 
@@ -215,7 +156,7 @@ export default function VotePage() {
   )
 }
 
-// Mock data for impactors with IDs 0-4
+// Mock data for impactors with IDs changed to 0-4 instead of 1-5
 const mockImpactors = [
   {
     id: "0",
