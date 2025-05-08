@@ -10,13 +10,17 @@ import { useVoting } from "@/hooks/use-voting"
 import { ConnectWalletButton } from "@/components/connect-wallet-button"
 import { ImpactorCard } from "@/components/impactor-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useState } from "react"
 
 export default function VotePage() {
   const { address, isConnected, chainId, switchToGnosisChain, isCorrectChain } = useWallet()
   const { allocations, setAllocation, remainingPoints, submitVote, isSubmitting, contractError } = useVoting()
+  const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
   const handleSubmitVote = async () => {
     try {
+      setTransactionStatus("Preparing transaction...")
+
       if (!isCorrectChain) {
         toast({
           title: "Wrong network",
@@ -27,18 +31,28 @@ export default function VotePage() {
         return
       }
 
+      setTransactionStatus("Waiting for wallet confirmation...")
+      console.log("Submitting vote, please check your wallet for transaction confirmation...")
+
       await submitVote()
+
+      setTransactionStatus("Transaction confirmed!")
       toast({
         title: "Vote submitted successfully!",
         description: "Your vote has been recorded on the blockchain.",
       })
     } catch (error) {
+      console.error("Vote submission error:", error)
+      setTransactionStatus(null)
+
       toast({
         title: "Error submitting vote",
         description:
           error instanceof Error ? error.message : "There was an error submitting your vote. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setTimeout(() => setTransactionStatus(null), 5000)
     }
   }
 
@@ -90,6 +104,13 @@ export default function VotePage() {
         <Alert variant="destructive" className="mb-6">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>{contractError}</AlertDescription>
+        </Alert>
+      )}
+
+      {transactionStatus && (
+        <Alert className="mb-6 bg-blue-50 border-blue-200">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          <AlertDescription className="text-blue-700">{transactionStatus}</AlertDescription>
         </Alert>
       )}
 
