@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useWallet } from "@/contexts/wallet-context"
-import { getGovernanceContract } from "@/lib/contracts"
+import { getGovernanceContract, getGnosisProvider } from "@/lib/contracts"
 import { ethers } from "ethers"
 
 interface Allocations {
@@ -15,6 +15,7 @@ export function useVoting(totalPoints = 100) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [maxPoints, setMaxPoints] = useState(totalPoints)
   const [contractError, setContractError] = useState<string | null>(null)
+  const [txHash, setTxHash] = useState<string | null>(null)
 
   // Calculate remaining points
   const usedPoints = Object.values(allocations).reduce((sum, points) => sum + points, 0)
@@ -35,6 +36,24 @@ export function useVoting(totalPoints = 100) {
       ...prev,
       [impactorId]: newPoints,
     }))
+  }
+
+  // Check transaction status by hash
+  const checkTransactionStatus = async (hash: string) => {
+    try {
+      const gnosisProvider = getGnosisProvider()
+      const receipt = await gnosisProvider.getTransactionReceipt(hash)
+
+      if (receipt) {
+        console.log("Transaction receipt:", receipt)
+        return receipt.status === 1 // 1 = success, 0 = failure
+      }
+
+      return null // Still pending
+    } catch (error) {
+      console.error("Error checking transaction status:", error)
+      return null
+    }
   }
 
   // Submit vote to blockchain
@@ -60,6 +79,7 @@ export function useVoting(totalPoints = 100) {
 
     setIsSubmitting(true)
     setContractError(null)
+    setTxHash(null)
 
     try {
       // Prepare the vote data
@@ -74,34 +94,19 @@ export function useVoting(totalPoints = 100) {
       // Get contract instance
       const contract = getGovernanceContract(signer)
 
-      // Log contract address and ABI for debugging
+      // Log contract address for debugging
       console.log("Contract address:", contract.target)
 
-      // Explicitly get a fresh signer if available
-      let currentSigner = signer
-      if (provider) {
-        try {
-          console.log("Getting fresh signer...")
-          currentSigner = await provider.getSigner()
-          console.log("Fresh signer obtained:", await currentSigner.getAddress())
-        } catch (error) {
-          console.warn("Could not get fresh signer, using existing one:", error)
-        }
-      }
-
-      // Use direct transaction parameters to ensure wallet popup
-      console.log("Preparing transaction...")
+      // Call the vote function with explicit gas limit
+      console.log("Sending transaction...")
       const tx = await contract.vote(impactorIds, points, {
         gasLimit: ethers.parseUnits("300000", "wei"), // Set explicit gas limit
       })
 
-      console.log("Transaction sent:", tx.hash)
-
-      // Wait for transaction to be mined
-      console.log("Waiting for transaction confirmation...")
-      const receipt = await tx.wait()
-
-      console.log("Transaction hash:", receipt.hash)
+      // Get transaction hash immediately
+      const hash = tx.hash
+      setTxHash(hash)
+      console.log("Transaction sent! Hash:", hash)
 
       // Save vote to localStorage for persistence
       const votes = JSON.parse(localStorage.getItem("votes") || "[]")
@@ -109,11 +114,53 @@ export function useVoting(totalPoints = 100) {
         address,
         allocations,
         timestamp: new Date().toISOString(),
-        txHash: receipt.hash,
+        txHash: hash,
+        status: "pending",
       })
       localStorage.setItem("votes", JSON.stringify(votes))
 
-      return true
+      // Start polling for transaction status
+      let confirmed = false
+      let attempts = 0
+      const maxAttempts = 30 // Try for about 5 minutes (10 seconds * 30)
+
+      while (!confirmed && attempts < maxAttempts) {
+        attempts++
+        await new Promise((resolve) => setTimeout(resolve, 10000)) // Wait 10 seconds between checks
+
+        const status = await checkTransactionStatus(hash)
+        console.log(`Check ${attempts}: Transaction status:`, status)
+
+        if (status === true) {
+          // Transaction confirmed successfully
+          confirmed = true
+
+          // Update vote status in localStorage
+          const updatedVotes = JSON.parse(localStorage.getItem("votes") || "[]")
+          const voteIndex = updatedVotes.findIndex((v: any) => v.txHash === hash)
+          if (voteIndex >= 0) {
+            updatedVotes[voteIndex].status = "confirmed"
+            localStorage.setItem("votes", JSON.stringify(updatedVotes))
+          }
+
+          console.log("Transaction confirmed successfully!")
+          break
+        } else if (status === false) {
+          // Transaction failed
+          throw new Error("Transaction failed on the blockchain")
+        }
+        // If status is null, transaction is still pending, continue polling
+      }
+
+      if (!confirmed) {
+        console.log("Transaction not confirmed after maximum attempts")
+      }
+
+      return {
+        success: true,
+        hash,
+        confirmed,
+      }
     } catch (error) {
       console.error("Error submitting vote:", error)
       setContractError(error instanceof Error ? error.message : "Unknown error occurred")
@@ -132,5 +179,7 @@ export function useVoting(totalPoints = 100) {
     maxPoints,
     contractError,
     isCorrectChain,
+    txHash,
+    checkTransactionStatus,
   }
 }
